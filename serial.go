@@ -96,6 +96,7 @@ func GetPortsList() ([]string, error) {
 
 // Mode describes a serial port configuration.
 type Mode struct {
+	UnixFdNonBlock    bool             // UNIX Only: Open port file descriptor in non-blocking mode
 	BaudRate          int              // The serial port bitrate (aka Baudrate)
 	DataBits          int              // Size of the character (must be 5, 6, 7 or 8)
 	Parity            Parity           // Parity (see Parity type for more info)

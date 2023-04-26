@@ -9,14 +9,14 @@
 package serial
 
 import (
-	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"go.bug.st/serial/unixutils"
+	"github.com/sk3wlabs/go-serial/unixutils"
 	"golang.org/x/sys/unix"
 )
 
@@ -212,7 +212,11 @@ func (port *unixPort) GetModemStatusBits() (*ModemStatusBits, error) {
 }
 
 func nativeOpen(portName string, mode *Mode) (*unixPort, error) {
-	h, err := unix.Open(portName, unix.O_RDWR|unix.O_NOCTTY|unix.O_NDELAY, 0)
+	fdMode := unix.O_RDWR | unix.O_NOCTTY | unix.O_NDELAY
+	if mode.UnixFdNonBlock {
+		fdMode |= unix.O_NONBLOCK
+	}
+	h, err := unix.Open(portName, fdMode, 0)
 	if err != nil {
 		switch err {
 		case unix.EBUSY:
@@ -289,7 +293,7 @@ func nativeOpen(portName string, mode *Mode) (*unixPort, error) {
 }
 
 func nativeGetPortsList() ([]string, error) {
-	files, err := ioutil.ReadDir(devFolder)
+	files, err := os.ReadDir(devFolder)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +318,9 @@ func nativeGetPortsList() ([]string, error) {
 
 		// Check if serial port is real or is a placeholder serial port "ttySxx" or "ttyHSxx"
 		if strings.HasPrefix(f.Name(), "ttyS") || strings.HasPrefix(f.Name(), "ttyHS") {
-			port, err := nativeOpen(portName, &Mode{})
+			port, err := nativeOpen(portName, &Mode{
+				UnixFdNonBlock: true,
+			})
 			if err != nil {
 				continue
 			} else {

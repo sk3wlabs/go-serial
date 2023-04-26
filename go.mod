@@ -1,6 +1,6 @@
-module go.bug.st/serial
+module github.com/sk3wlabs/go-serial
 
-go 1.17
+go 1.19
 
 require (
 	github.com/creack/goselect v0.1.2
