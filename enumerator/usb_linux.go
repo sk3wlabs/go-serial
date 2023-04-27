@@ -16,8 +16,24 @@ import (
 )
 
 func nativeGetDetailedPortsList() ([]*PortDetails, error) {
+	return nativeGetDetailedPortsListWithOptions(nil)
+}
+
+func GetDetailedPortsListWithOptions(opts *serial.UnixOptions) ([]*PortDetails, error) {
+	return nativeGetDetailedPortsListWithOptions(opts)
+}
+
+func nativeGetDetailedPortsListWithOptions(opts *serial.UnixOptions) ([]*PortDetails, error) {
+	var ports []string
+	var err error
+
 	// Retrieve the port list
-	ports, err := serial.GetPortsList()
+	if opts == nil {
+		ports, err = serial.GetPortsList()
+	} else {
+		ports, err = serial.GetUnixPortsList(opts)
+	}
+
 	if err != nil {
 		return nil, &PortEnumerationError{causedBy: err}
 	}
