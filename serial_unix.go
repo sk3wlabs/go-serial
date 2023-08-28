@@ -9,14 +9,14 @@
 package serial
 
 import (
-	"io/ioutil"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"go.bug.st/serial/unixutils"
+	"github.com/sk3wlabs/go-serial/unixutils"
 	"golang.org/x/sys/unix"
 )
 
@@ -212,7 +212,11 @@ func (port *unixPort) GetModemStatusBits() (*ModemStatusBits, error) {
 }
 
 func nativeOpen(portName string, mode *Mode) (*unixPort, error) {
-	h, err := unix.Open(portName, unix.O_RDWR|unix.O_NOCTTY|unix.O_NDELAY, 0)
+	return nativeOpenWithFdMode(portName, mode, unix.O_RDWR|unix.O_NOCTTY|unix.O_NDELAY)
+}
+
+func nativeOpenWithFdMode(portName string, serialMode *Mode, fdMode int) (*unixPort, error) {
+	h, err := unix.Open(portName, fdMode, 0)
 	if err != nil {
 		switch err {
 		case unix.EBUSY:
@@ -246,17 +250,17 @@ func nativeOpen(portName string, mode *Mode) (*unixPort, error) {
 		return nil, &PortError{code: InvalidSerialPort}
 	}
 
-	if mode.InitialStatusBits != nil {
+	if serialMode.InitialStatusBits != nil {
 		status, err := port.getModemBitsStatus()
 		if err != nil {
 			return nil, &PortError{code: InvalidSerialPort, causedBy: err}
 		}
-		if mode.InitialStatusBits.DTR {
+		if serialMode.InitialStatusBits.DTR {
 			status |= unix.TIOCM_DTR
 		} else {
 			status &^= unix.TIOCM_DTR
 		}
-		if mode.InitialStatusBits.RTS {
+		if serialMode.InitialStatusBits.RTS {
 			status |= unix.TIOCM_RTS
 		} else {
 			status &^= unix.TIOCM_RTS
@@ -268,7 +272,7 @@ func nativeOpen(portName string, mode *Mode) (*unixPort, error) {
 
 	// MacOSX require that this operation is the last one otherwise an
 	// 'Invalid serial port' error is returned... don't know why...
-	if port.SetMode(mode) != nil {
+	if port.SetMode(serialMode) != nil {
 		port.Close()
 		return nil, &PortError{code: InvalidSerialPort}
 	}
@@ -288,8 +292,30 @@ func nativeOpen(portName string, mode *Mode) (*unixPort, error) {
 	return port, nil
 }
 
+// GetUnixPortsList retrieve the list of available serial ports. This is a unix snowflake method. Sorry.
+func GetUnixPortsList(opts *UnixOptions) ([]string, error) {
+	return nativeGetPortsListWithOptions(opts)
+}
+
 func nativeGetPortsList() ([]string, error) {
-	files, err := ioutil.ReadDir(devFolder)
+	return nativeGetPortsListWithOptions(nil)
+}
+
+type UnixOptions struct {
+	OmitTtyS   bool
+	FdOpenMode int
+}
+
+func nativeGetPortsListWithOptions(opts *UnixOptions) ([]string, error) {
+	omitTtyS := false
+	fdOpenMode := 0
+
+	if opts != nil {
+		omitTtyS = opts.OmitTtyS
+		fdOpenMode = opts.FdOpenMode
+	}
+
+	files, err := os.ReadDir(devFolder)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +340,18 @@ func nativeGetPortsList() ([]string, error) {
 
 		// Check if serial port is real or is a placeholder serial port "ttySxx" or "ttyHSxx"
 		if strings.HasPrefix(f.Name(), "ttyS") || strings.HasPrefix(f.Name(), "ttyHS") {
-			port, err := nativeOpen(portName, &Mode{})
+			if omitTtyS {
+				continue
+			}
+
+			var port *unixPort
+			var err error
+			if fdOpenMode == 0 {
+				port, err = nativeOpen(portName, &Mode{})
+			} else {
+				port, err = nativeOpenWithFdMode(portName, &Mode{}, fdOpenMode)
+			}
+
 			if err != nil {
 				continue
 			} else {

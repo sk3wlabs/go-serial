@@ -1,11 +1,11 @@
-module go.bug.st/serial
+module github.com/sk3wlabs/go-serial
 
-go 1.17
+go 1.19
 
 require (
 	github.com/creack/goselect v0.1.2
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261
+	golang.org/x/sys v0.11.0
 )
 
 require (
